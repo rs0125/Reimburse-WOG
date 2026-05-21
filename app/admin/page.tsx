@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getDownloadUrl } from "@/lib/r2";
 import AdminEntriesTable, { AdminEntry } from "./_components/AdminEntriesTable";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export default async function AdminPage() {
       submittedBy: {
         include: { verifiedNumber: { select: { email: true, name: true } } },
       },
-      attachments: { select: { id: true, name: true, kind: true } },
+      attachments: { select: { id: true, name: true, kind: true, sizeBytes: true, r2Key: true } },
     },
   });
 
@@ -59,6 +60,16 @@ export default async function AdminPage() {
       row.approvedAmount += amount;
     }
 
+    const attachmentsWithUrls = await Promise.all(
+      t.attachments.map(async (a) => ({
+        id: a.id,
+        name: a.name,
+        kind: a.kind,
+        sizeBytes: a.sizeBytes,
+        previewUrl: await getDownloadUrl(a.r2Key, 600),
+      })),
+    );
+
     entries.push({
       id: t.id,
       shortCode: t.shortCode,
@@ -71,11 +82,7 @@ export default async function AdminPage() {
       submitterName,
       submitterEmail: email,
       empID: u.empID,
-      attachments: t.attachments.map((a) => ({
-        id: a.id,
-        name: a.name,
-        kind: a.kind,
-      })),
+      attachments: attachmentsWithUrls,
     });
   }
 

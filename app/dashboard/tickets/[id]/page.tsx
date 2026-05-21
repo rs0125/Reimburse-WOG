@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { getDownloadUrl } from "@/lib/r2";
 import CancelTicketButton from "@/app/_components/CancelTicketButton";
 import AttachmentLink from "@/app/_components/AttachmentLink";
 import { IconEdit } from "@/app/_components/Icons";
@@ -44,8 +45,16 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   if (!ticket) notFound();
   if (ticket.submittedByEmpID !== user.empID && !user.isAdmin) notFound();
 
-  const images = ticket.attachments.filter((a) => a.kind === "IMAGE");
-  const docs = ticket.attachments.filter((a) => a.kind === "DOCUMENT");
+  // Pre-sign attachment URLs server-side so previews render immediately (no per-tile fetch).
+  // 10-minute expiry comfortably covers a normal page session.
+  const attachmentsWithUrls = await Promise.all(
+    ticket.attachments.map(async (a) => ({
+      ...a,
+      previewUrl: await getDownloadUrl(a.r2Key, 600),
+    })),
+  );
+  const images = attachmentsWithUrls.filter((a) => a.kind === "IMAGE");
+  const docs = attachmentsWithUrls.filter((a) => a.kind === "DOCUMENT");
   const canModify = ticket.status === "PENDING" || ticket.status === "REVIEW";
   const isOwner = ticket.submittedByEmpID === user.empID;
   const status = ticket.status.toLowerCase();
@@ -120,6 +129,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                     name={a.name}
                     sizeLabel={fmtBytes(a.sizeBytes)}
                     kind="IMAGE"
+                    previewUrl={a.previewUrl}
                   />
                 ))}
               </div>
@@ -129,7 +139,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           {docs.length > 0 && (
             <div className="card" style={{ marginTop: "1rem" }}>
               <h2>Documents ({docs.length})</h2>
-              <div className="file-list">
+              <div className="media-grid">
                 {docs.map((a) => (
                   <AttachmentLink
                     key={a.id}
@@ -137,6 +147,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                     name={a.name}
                     sizeLabel={fmtBytes(a.sizeBytes)}
                     kind="DOCUMENT"
+                    previewUrl={a.previewUrl}
                   />
                 ))}
               </div>

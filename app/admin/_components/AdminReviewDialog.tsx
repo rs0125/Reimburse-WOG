@@ -3,8 +3,21 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
+import AttachmentLink from "@/app/_components/AttachmentLink";
 
-type AttachmentLite = { id: string; name: string; kind: "IMAGE" | "DOCUMENT" };
+type AttachmentLite = {
+  id: string;
+  name: string;
+  kind: "IMAGE" | "DOCUMENT";
+  sizeBytes: number;
+  previewUrl: string;
+};
+
+function fmtBytes(b: number): string {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export type ReviewTicket = {
   id: string;
@@ -118,21 +131,6 @@ export default function AdminReviewDialog({ open, ticket, onClose }: Props) {
     }
   }
 
-  async function openAttachment(id: string) {
-    try {
-      const res = await fetch(`/api/attachments/${id}/url`);
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        alert(`Could not open: ${data.error ?? res.statusText}`);
-        return;
-      }
-      const { url } = (await res.json()) as { url: string };
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (err) {
-      alert(`Failed: ${err instanceof Error ? err.message : "unknown"}`);
-    }
-  }
-
   const node = (
     <div
       role="dialog"
@@ -205,7 +203,7 @@ export default function AdminReviewDialog({ open, ticket, onClose }: Props) {
           </div>
 
           <div>
-            <div style={{ color: "var(--slate)", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, marginBottom: "0.3rem" }}>
+            <div style={{ color: "var(--slate)", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, marginBottom: "0.4rem" }}>
               Attachments ({ticket.attachments.length})
             </div>
             {ticket.attachments.length === 0 ? (
@@ -213,29 +211,16 @@ export default function AdminReviewDialog({ open, ticket, onClose }: Props) {
                 No attachments
               </div>
             ) : (
-              <div className="file-list">
+              <div className="media-grid">
                 {ticket.attachments.map((a) => (
-                  <button
+                  <AttachmentLink
                     key={a.id}
-                    type="button"
-                    className="file-item"
-                    onClick={() => openAttachment(a.id)}
-                    style={{
-                      textAlign: "left",
-                      cursor: "pointer",
-                      width: "100%",
-                      font: "inherit",
-                    }}
-                  >
-                    <div>
-                      <div className="name">
-                        {a.kind === "IMAGE" ? "🖼" : "📄"} {a.name}
-                      </div>
-                    </div>
-                    <span style={{ color: "var(--blue)", fontSize: "0.82rem", fontWeight: 600 }}>
-                      Open
-                    </span>
-                  </button>
+                    id={a.id}
+                    name={a.name}
+                    sizeLabel={fmtBytes(a.sizeBytes)}
+                    kind={a.kind}
+                    previewUrl={a.previewUrl}
+                  />
                 ))}
               </div>
             )}

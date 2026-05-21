@@ -1,10 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import ViewFilesButton from "./ViewFilesButton";
 import AdminReviewDialog, { ReviewTicket } from "./AdminReviewDialog";
 
-type AttachmentLite = { id: string; name: string; kind: "IMAGE" | "DOCUMENT" };
+type AttachmentLite = {
+  id: string;
+  name: string;
+  kind: "IMAGE" | "DOCUMENT";
+  sizeBytes: number;
+  previewUrl: string;
+};
 
 export type AdminEntry = {
   id: string;
@@ -176,8 +181,8 @@ export default function AdminEntriesTable({ entries }: { entries: AdminEntry[] }
                 <th>Employee</th>
                 <th className="title-cell">Title / Details</th>
                 <th className="num">Amount</th>
+                <th className="num">Files</th>
                 <th>Status</th>
-                <th style={{ textAlign: "right" }}>Files</th>
               </tr>
             </thead>
             <tbody>
@@ -211,11 +216,11 @@ export default function AdminEntriesTable({ entries }: { entries: AdminEntry[] }
                       </div>
                     </td>
                     <td className="num">{formatINR(e.amount)}</td>
+                    <td className="num" style={{ color: e.attachments.length === 0 ? "var(--slate)" : "var(--blue)" }}>
+                      {e.attachments.length}
+                    </td>
                     <td>
                       <span className={`badge badge-${statusLower}`}>{statusLower}</span>
-                    </td>
-                    <td style={{ textAlign: "right" }} onClick={(ev) => ev.stopPropagation()}>
-                      <ViewFilesButton attachments={e.attachments} />
                     </td>
                   </tr>
                 );
