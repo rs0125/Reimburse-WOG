@@ -1,0 +1,292 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
+
+type AttachmentLite = { id: string; name: string; kind: "IMAGE" | "DOCUMENT" };
+
+export type ReviewTicket = {
+  id: string;
+  shortCode: string;
+  title: string;
+  category: string;
+  amount: number;
+  description: string;
+  status: "PENDING" | "REVIEW" | "APPROVED" | "REJECTED" | "CANCELLED";
+  createdAt: string;
+  submitterName: string;
+  submitterEmail: string;
+  empID: string;
+  attachments: AttachmentLite[];
+};
+
+function fmtINR(n: number) {
+  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+type Props = {
+  open: boolean;
+  ticket: ReviewTicket | null;
+  onClose: () => void;
+};
+
+export default function AdminReviewDialog({ open, ticket, onClose }: Props) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<"APPROVED" | "REJECTED" | "PENDING" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !busy) onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, busy, onClose]);
+
+  useEffect(() => {
+    if (open) {
+      setError(null);
+      setBusy(null);
+    }
+  }, [open, ticket?.id]);
+
+  if (!mounted || !open || !ticket) return null;
+
+  const statusLower = ticket.status.toLowerCase();
+
+  type Action = "APPROVED" | "REJECTED" | "PENDING";
+  type ActionDef = { target: Action; label: string; className: string };
+
+  const actions: ActionDef[] = (() => {
+    if (ticket.status === "PENDING" || ticket.status === "REVIEW") {
+      return [
+        { target: "REJECTED", label: "Reject",  className: "btn btn-reject" },
+        { target: "APPROVED", label: "Approve", className: "btn btn-approve" },
+      ];
+    }
+    if (ticket.status === "APPROVED") {
+      return [
+        { target: "PENDING",  label: "Reopen",            className: "btn btn-ghost" },
+        { target: "REJECTED", label: "Mark as rejected",  className: "btn btn-reject" },
+      ];
+    }
+    if (ticket.status === "REJECTED") {
+      return [
+        { target: "PENDING",  label: "Reopen",            className: "btn btn-ghost" },
+        { target: "APPROVED", label: "Mark as approved",  className: "btn btn-approve" },
+      ];
+    }
+    // CANCELLED
+    return [
+      { target: "PENDING", label: "Restore as pending", className: "btn btn-ghost" },
+    ];
+  })();
+
+  const noteForCurrent: string | null = (() => {
+    if (ticket.status === "APPROVED")  return "This ticket is currently approved. Changing status will notify the employee.";
+    if (ticket.status === "REJECTED")  return "This ticket is currently rejected. Changing status will notify the employee.";
+    if (ticket.status === "CANCELLED") return "This ticket was cancelled by the employee. Restoring puts it back into the pending queue.";
+    return null;
+  })();
+
+  async function act(target: Action) {
+    if (busy || !ticket) return;
+    setBusy(target);
+    setError(null);
+    try {
+      const res = await fetch(`/api/tickets/${ticket.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: target }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? `Failed (${res.status})`);
+        setBusy(null);
+        return;
+      }
+      onClose();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+      setBusy(null);
+    }
+  }
+
+  async function openAttachment(id: string) {
+    try {
+      const res = await fetch(`/api/attachments/${id}/url`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(`Could not open: ${data.error ?? res.statusText}`);
+        return;
+      }
+      const { url } = (await res.json()) as { url: string };
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      alert(`Failed: ${err instanceof Error ? err.message : "unknown"}`);
+    }
+  }
+
+  const node = (
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(10, 34, 57, 0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        padding: "1rem",
+      }}
+      onClick={() => !busy && onClose()}
+    >
+      <div
+        className="card"
+        style={{ maxWidth: 600, width: "100%", padding: 0, maxHeight: "90vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ padding: "1.1rem 1.25rem", borderBottom: "var(--stroke) solid var(--blue)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontSize: "1.1rem" }}>
+              Ticket {ticket.shortCode}
+            </h2>
+            <div style={{ color: "var(--slate)", fontSize: "0.82rem", marginTop: "0.15rem" }}>
+              Submitted {ticket.createdAt}
+            </div>
+          </div>
+          <span className={`badge badge-${statusLower}`}>{statusLower}</span>
+        </div>
+
+        <div style={{ padding: "1.1rem 1.25rem", overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+          <div>
+            <div style={{ fontWeight: 700, color: "var(--blue)", fontSize: "1.05rem", marginBottom: "0.15rem" }}>
+              {ticket.title}
+            </div>
+            <div style={{ color: "var(--slate)", fontSize: "0.82rem" }}>
+              {ticket.category}
+            </div>
+          </div>
+
+          <dl style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "0.4rem 0.85rem", margin: 0, fontSize: "0.88rem" }}>
+            <dt style={{ color: "var(--slate)" }}>Employee</dt>
+            <dd style={{ margin: 0 }}>
+              {ticket.submitterName} · {ticket.empID}
+              <div style={{ color: "var(--slate)", fontSize: "0.78rem" }}>{ticket.submitterEmail}</div>
+            </dd>
+            <dt style={{ color: "var(--slate)" }}>Amount</dt>
+            <dd style={{ margin: 0, fontWeight: 700, color: "var(--blue)" }}>{fmtINR(ticket.amount)}</dd>
+          </dl>
+
+          <div>
+            <div style={{ color: "var(--slate)", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, marginBottom: "0.3rem" }}>
+              Description
+            </div>
+            <div style={{
+              background: "var(--ivory-soft)",
+              border: "var(--stroke) solid var(--blue)",
+              padding: "0.7rem 0.85rem",
+              borderRadius: "var(--radius-sm)",
+              whiteSpace: "pre-wrap",
+              fontSize: "0.9rem",
+              maxHeight: "10rem",
+              overflowY: "auto",
+            }}>
+              {ticket.description}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ color: "var(--slate)", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, marginBottom: "0.3rem" }}>
+              Attachments ({ticket.attachments.length})
+            </div>
+            {ticket.attachments.length === 0 ? (
+              <div style={{ color: "var(--slate)", fontSize: "0.85rem", fontStyle: "italic" }}>
+                No attachments
+              </div>
+            ) : (
+              <div className="file-list">
+                {ticket.attachments.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    className="file-item"
+                    onClick={() => openAttachment(a.id)}
+                    style={{
+                      textAlign: "left",
+                      cursor: "pointer",
+                      width: "100%",
+                      font: "inherit",
+                    }}
+                  >
+                    <div>
+                      <div className="name">
+                        {a.kind === "IMAGE" ? "🖼" : "📄"} {a.name}
+                      </div>
+                    </div>
+                    <span style={{ color: "var(--blue)", fontSize: "0.82rem", fontWeight: 600 }}>
+                      Open
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div className="alert" style={{ color: "var(--bad)", borderColor: "var(--bad)", marginBottom: 0 }}>
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: "0.9rem 1.25rem", borderTop: "var(--stroke) solid var(--blue)", display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+          {noteForCurrent && (
+            <div style={{ color: "var(--slate)", fontSize: "0.8rem" }}>
+              {noteForCurrent}
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={onClose}
+              disabled={busy !== null}
+            >
+              Close
+            </button>
+            {actions.map((a) => (
+              <button
+                key={a.target}
+                type="button"
+                className={a.className}
+                onClick={() => act(a.target)}
+                disabled={busy !== null}
+                aria-busy={busy === a.target}
+              >
+                {busy === a.target ? (
+                  <>
+                    <span className="dot-spinner" aria-hidden="true" />
+                    Working…
+                  </>
+                ) : (
+                  a.label
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return createPortal(node, document.body);
+}

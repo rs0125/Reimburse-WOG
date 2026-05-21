@@ -71,6 +71,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (!wantCancel && !user.isAdmin) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
+    if (wantCancel && existing.status !== "PENDING" && existing.status !== "REVIEW") {
+      return NextResponse.json(
+        { error: `cannot cancel ticket in ${existing.status} state` },
+        { status: 409 },
+      );
+    }
   }
 
   if (editingFields) {
@@ -124,12 +130,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         ],
       },
     },
-    include: {
-      submittedBy: {
-        include: { verifiedNumber: { select: { email: true, name: true } } },
-      },
-      attachments: true,
-      events: { orderBy: { createdAt: "asc" } },
+    select: {
+      id: true,
+      shortCode: true,
+      status: true,
+      updatedAt: true,
     },
   });
 

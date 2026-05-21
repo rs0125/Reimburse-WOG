@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import HistoryFilter from "@/app/_components/HistoryFilter";
+import { TicketCardData } from "@/app/_components/TicketCard";
+import { IconPlus } from "@/app/_components/Icons";
 
 export const dynamic = "force-dynamic";
 
@@ -18,20 +21,25 @@ export default async function DashboardHome() {
   const tickets = await prisma.ticket.findMany({
     where: { submittedByEmpID: user.empID },
     orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      shortCode: true,
-      title: true,
-      category: true,
-      amount: true,
-      status: true,
-      createdAt: true,
-    },
+    relationLoadStrategy: "join",
+    include: { attachments: { select: { id: true } } },
   });
 
-  const pending = tickets.filter((t) => t.status === "PENDING" || t.status === "REVIEW").length;
-  const approved = tickets.filter((t) => t.status === "APPROVED").length;
-  const rejected = tickets.filter((t) => t.status === "REJECTED").length;
+  const pending = tickets.filter((t) => t.status === "PENDING" || t.status === "REVIEW");
+  const approved = tickets.filter((t) => t.status === "APPROVED");
+
+  const pendingAmount = pending.reduce((s, t) => s + Number(t.amount), 0);
+  const approvedAmount = approved.reduce((s, t) => s + Number(t.amount), 0);
+
+  const cards: TicketCardData[] = tickets.map((t) => ({
+    shortCode: t.shortCode,
+    title: t.title,
+    category: t.category,
+    amount: Number(t.amount),
+    status: t.status,
+    createdAt: fmtDate(t.createdAt),
+    attachmentCount: t.attachments.length,
+  }));
 
   return (
     <>
@@ -40,55 +48,31 @@ export default async function DashboardHome() {
           <h1>Welcome back, {user.name}</h1>
           <div className="sub">Manage your reimbursement requests in one place.</div>
         </div>
-        <Link href="/dashboard/new" className="btn btn-primary">+ Raise a ticket</Link>
+        <Link href="/dashboard/new" className="btn btn-primary">
+          <IconPlus /> Raise a ticket
+        </Link>
       </div>
 
       <div className="row-split" style={{ marginBottom: "1.5rem" }}>
-        <div className="card">
-          <h3>Pending</h3>
-          <div className="stat">{pending}</div>
-          <p style={{ margin: 0 }}>Awaiting review</p>
+        <div className="card stat-card">
+          <p className="stat-label">Pending</p>
+          <div className="stat-value">{pending.length}</div>
+          <p className="stat-sub">
+            {pending.length === 0 ? "Nothing awaiting review" : `${fmtINR(pendingAmount)} awaiting review`}
+          </p>
         </div>
-        <div className="card">
-          <h3>Approved</h3>
-          <div className="stat">{approved}</div>
-          <p style={{ margin: 0 }}>Reimbursed or scheduled</p>
+        <div className="card stat-card">
+          <p className="stat-label">Approved</p>
+          <div className="stat-value">{approved.length}</div>
+          <p className="stat-sub">
+            {approved.length === 0 ? "No approvals yet" : `${fmtINR(approvedAmount)} approved`}
+          </p>
         </div>
       </div>
 
-      <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-          <h2 style={{ margin: 0 }}>Recent activity</h2>
-          <Link href="/dashboard/history">View all →</Link>
-        </div>
-        <div className="ticket-list">
-          {tickets.length === 0 && (
-            <div style={{ color: "var(--slate)" }}>No tickets yet. Raise your first one.</div>
-          )}
-          {tickets.slice(0, 3).map((t) => {
-            const status = t.status.toLowerCase();
-            return (
-              <Link
-                key={t.id}
-                href={`/dashboard/tickets/${t.shortCode}`}
-                className="ticket-row ticket-row-link"
-              >
-                <div>
-                  <div className="title">{t.title}</div>
-                  <div className="meta">#{t.shortCode} · {t.category} · {fmtDate(t.createdAt)}</div>
-                </div>
-                <div className="right" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                  <span className="amount">{fmtINR(Number(t.amount))}</span>
-                  <span className={`badge badge-${status}`}>{status}</span>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-        <p className="hint" style={{ marginTop: "0.75rem" }}>
-          Summary placeholders — {rejected} rejected ticket{rejected === 1 ? "" : "s"} in total.
-        </p>
-      </div>
+      <div className="section-label" style={{ marginTop: 0 }}>Your tickets</div>
+
+      <HistoryFilter tickets={cards} />
     </>
   );
 }

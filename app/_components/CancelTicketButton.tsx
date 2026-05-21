@@ -2,15 +2,24 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import ConfirmDialog from "./ConfirmDialog";
+import { IconX } from "./Icons";
 
-export default function CancelTicketButton({ ticketId }: { ticketId: string }) {
+type Props = {
+  ticketId: string;
+  redirectTo?: string;
+};
+
+export default function CancelTicketButton({ ticketId, redirectTo }: Props) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function handleClick() {
+  async function doCancel() {
     if (busy) return;
-    if (!confirm(`Cancel ticket ${ticketId}? This cannot be undone.`)) return;
     setBusy(true);
+    setError(null);
     try {
       const res = await fetch(`/api/tickets/${encodeURIComponent(ticketId)}`, {
         method: "PATCH",
@@ -19,21 +28,54 @@ export default function CancelTicketButton({ ticketId }: { ticketId: string }) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        alert(`Failed: ${data.error ?? res.statusText}`);
+        setError(data.error ?? `Failed (${res.status})`);
+        setBusy(false);
         return;
       }
-      router.push("/dashboard/history");
+      setOpen(false);
+      if (redirectTo) router.push(redirectTo);
       router.refresh();
     } catch (err) {
-      alert(`Failed: ${err instanceof Error ? err.message : "unknown error"}`);
-    } finally {
+      setError(err instanceof Error ? err.message : "Failed");
       setBusy(false);
     }
   }
 
   return (
-    <button type="button" className="btn btn-danger" onClick={handleClick} disabled={busy}>
-      {busy ? "Cancelling…" : "Cancel ticket"}
-    </button>
+    <>
+      <button
+        type="button"
+        className="icon-btn danger"
+        onClick={() => {
+          setError(null);
+          setOpen(true);
+        }}
+        disabled={busy}
+      >
+        <IconX /> {busy ? "Cancelling…" : "Cancel"}
+      </button>
+      <ConfirmDialog
+        open={open}
+        title={`Cancel ticket ${ticketId}?`}
+        body={
+          <div>
+            <p style={{ margin: 0 }}>
+              This will mark the ticket as cancelled and cannot be undone.
+            </p>
+            {error && (
+              <p style={{ color: "var(--bad)", marginTop: "0.5rem", marginBottom: 0, fontSize: "0.88rem" }}>
+                {error}
+              </p>
+            )}
+          </div>
+        }
+        confirmLabel="Cancel ticket"
+        cancelLabel="Keep ticket"
+        destructive
+        busy={busy}
+        onConfirm={doCancel}
+        onClose={() => !busy && setOpen(false)}
+      />
+    </>
   );
 }

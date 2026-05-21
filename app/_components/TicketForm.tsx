@@ -158,7 +158,7 @@ export default function TicketForm({ mode = "create", ticketId, initial }: Props
         if (isEdit && ticketId) {
           router.push(`/dashboard/tickets/${ticketId}`);
         } else {
-          router.push("/dashboard/history");
+          router.push("/dashboard");
         }
         router.refresh();
       }, 500);

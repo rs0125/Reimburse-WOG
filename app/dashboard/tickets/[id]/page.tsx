@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import CancelTicketButton from "@/app/_components/CancelTicketButton";
 import AttachmentLink from "@/app/_components/AttachmentLink";
+import { IconEdit } from "@/app/_components/Icons";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,21 @@ function fmtBytes(b: number): string {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const STATUS_DESCRIPTION: Record<string, string> = {
+  PENDING: "Awaiting review by Finance.",
+  REVIEW: "Under review by Finance.",
+  APPROVED: "Approved — scheduled for reimbursement.",
+  REJECTED: "Rejected — see timeline for the reason.",
+  CANCELLED: "Cancelled — no further action will be taken.",
+};
+
 export default async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
 
   const ticket = await prisma.ticket.findFirst({
     where: { OR: [{ id }, { shortCode: id }] },
+    relationLoadStrategy: "join",
     include: {
       attachments: { orderBy: { createdAt: "asc" } },
       events: { orderBy: { createdAt: "asc" } },
@@ -37,6 +47,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   const images = ticket.attachments.filter((a) => a.kind === "IMAGE");
   const docs = ticket.attachments.filter((a) => a.kind === "DOCUMENT");
   const canModify = ticket.status === "PENDING" || ticket.status === "REVIEW";
+  const isOwner = ticket.submittedByEmpID === user.empID;
   const status = ticket.status.toLowerCase();
   const submitterLabel =
     ticket.submittedBy.verifiedNumber?.email ?? ticket.submittedByEmpID;
@@ -44,23 +55,41 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   return (
     <>
       <div style={{ marginBottom: "0.5rem" }}>
-        <Link href="/dashboard/history">← Back to history</Link>
+        <Link href="/dashboard" style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.88rem" }}>
+          ← Back to dashboard
+        </Link>
       </div>
 
-      <div className="page-head">
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h1 style={{ marginBottom: "0.25rem" }}>{ticket.title}</h1>
-          <div className="sub">
-            #{ticket.shortCode} · {ticket.category} · Submitted {fmtDateTime(ticket.createdAt)}
+      <div className={`tcard accent-${status}`} style={{ marginBottom: "1.25rem", padding: "1.25rem 1.5rem" }}>
+        <div className="t-main">
+          <div className="t-title-row">
+            <h1 style={{ margin: 0, fontSize: "1.4rem" }}>{ticket.title}</h1>
+            <span className="t-code">{ticket.shortCode}</span>
+          </div>
+          <div className="t-meta" style={{ marginTop: "0.2rem" }}>
+            {ticket.category}<span className="sep">·</span>Submitted {fmtDateTime(ticket.createdAt)}
+          </div>
+          <div style={{ marginTop: "0.6rem", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+            <span className={`badge badge-${status}`}>{status}</span>
+            <span style={{ color: "var(--slate)", fontSize: "0.85rem" }}>
+              {STATUS_DESCRIPTION[ticket.status]}
+            </span>
           </div>
         </div>
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-          <span className={`badge badge-${status}`}>{status}</span>
-          {canModify && ticket.submittedByEmpID === user.empID && (
-            <>
-              <Link href={`/dashboard/tickets/${ticket.shortCode}/edit`} className="btn btn-ghost">Edit</Link>
-              <CancelTicketButton ticketId={ticket.shortCode} />
-            </>
+        <div className="t-side">
+          <span className="t-amount" style={{ fontSize: "1.4rem" }}>
+            ₹{Number(ticket.amount).toLocaleString("en-IN")}
+          </span>
+          {canModify && isOwner && (
+            <div className="t-actions">
+              <Link
+                href={`/dashboard/tickets/${ticket.shortCode}/edit`}
+                className="icon-btn"
+              >
+                <IconEdit /> Edit
+              </Link>
+              <CancelTicketButton ticketId={ticket.shortCode} redirectTo="/dashboard" />
+            </div>
           )}
         </div>
       </div>
@@ -82,7 +111,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
 
           {images.length > 0 && (
             <div className="card" style={{ marginTop: "1rem" }}>
-              <h2>Media</h2>
+              <h2>Media ({images.length})</h2>
               <div className="media-grid">
                 {images.map((a) => (
                   <AttachmentLink
@@ -99,7 +128,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
 
           {docs.length > 0 && (
             <div className="card" style={{ marginTop: "1rem" }}>
-              <h2>Documents</h2>
+              <h2>Documents ({docs.length})</h2>
               <div className="file-list">
                 {docs.map((a) => (
                   <AttachmentLink
@@ -111,6 +140,12 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                   />
                 ))}
               </div>
+            </div>
+          )}
+
+          {ticket.attachments.length === 0 && (
+            <div className="card" style={{ marginTop: "1rem", textAlign: "center", color: "var(--slate)" }}>
+              No attachments on this ticket.
             </div>
           )}
         </div>
@@ -129,9 +164,10 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           </div>
           {!canModify && (
             <div className="card" style={{ marginTop: "1rem" }}>
-              <h3>Locked</h3>
-              <p style={{ margin: 0 }}>
-                This ticket can no longer be edited or cancelled because its current status is <strong>{status}</strong>.
+              <h3>Why can't I edit this?</h3>
+              <p style={{ margin: 0, color: "var(--slate)" }}>
+                Tickets can only be edited or cancelled while they're <strong>pending</strong> or <strong>under review</strong>.
+                This ticket is now <strong>{status}</strong>.
               </p>
             </div>
           )}

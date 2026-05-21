@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -41,20 +42,15 @@ export async function getSessionEmail(): Promise<string | null> {
   return c.get(COOKIE_NAME)?.value ?? null;
 }
 
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const email = await getSessionEmail();
   if (!email) return null;
+
   const verified = await prisma.verifiedNumber.findUnique({
     where: { email },
     select: { empID: true, email: true, name: true, is_active: true },
   });
   if (!verified?.empID || verified.is_active === false) return null;
-
-  await prisma.employee.upsert({
-    where: { empID: verified.empID },
-    create: { empID: verified.empID },
-    update: {},
-  });
 
   const lower = (verified.email ?? email).toLowerCase();
   return {
@@ -63,7 +59,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     name: verified.name,
     isAdmin: adminEmails().has(lower),
   };
-}
+});
 
 export async function requireUser(): Promise<CurrentUser> {
   const u = await getCurrentUser();

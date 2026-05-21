@@ -1,6 +1,6 @@
 import Link from "next/link";
 import NavLinks from "../_components/NavLinks";
-import SignOutButton from "../_components/SignOutButton";
+import UserMenu from "../_components/UserMenu";
 import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -13,16 +13,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <header className="app-header">
         <div className="inner">
           <Link href="/dashboard" className="brand">
-            <span className="dot" />
-            <span>Reimbursement Portal</span>
+            <span className="brand-mark" aria-hidden="true">RP</span>
+            <span className="brand-text">
+              <span className="brand-title">Reimbursement</span>
+              <span className="brand-sub">Portal</span>
+            </span>
           </Link>
           <nav className="nav">
             <NavLinks isAdmin={user.isAdmin} />
-            <span style={{ marginLeft: "0.5rem", color: "var(--slate)", fontSize: "0.85rem" }}>
-              {user.name} · {user.empID}
-            </span>
-            <SignOutButton />
           </nav>
+          <div className="nav-end">
+            <UserMenu
+              name={user.name}
+              empID={user.empID}
+              email={user.email}
+              isAdmin={user.isAdmin}
+            />
+          </div>
         </div>
       </header>
       <main className="app-main">{children}</main>

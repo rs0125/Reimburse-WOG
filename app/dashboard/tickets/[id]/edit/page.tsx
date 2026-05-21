@@ -18,6 +18,7 @@ export default async function EditTicketPage({ params }: { params: Promise<{ id:
 
   const ticket = await prisma.ticket.findFirst({
     where: { OR: [{ id }, { shortCode: id }] },
+    relationLoadStrategy: "join",
     include: { attachments: { orderBy: { createdAt: "asc" } } },
   });
   if (!ticket) notFound();

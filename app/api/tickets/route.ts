@@ -29,6 +29,7 @@ export async function GET() {
   const tickets = await prisma.ticket.findMany({
     where,
     orderBy: { createdAt: "desc" },
+    relationLoadStrategy: "join",
     include: {
       submittedBy: {
         include: { verifiedNumber: { select: { email: true, name: true } } },
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
       attachments: body.attachments?.length ? { create: body.attachments } : undefined,
       events: { create: [{ label: "Ticket submitted" }] },
     },
-    include: { attachments: true, events: true },
+    select: { id: true, shortCode: true },
   });
 
   return NextResponse.json(ticket, { status: 201 });
