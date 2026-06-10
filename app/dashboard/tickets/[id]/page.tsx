@@ -13,6 +13,16 @@ function fmtDateTime(d: Date): string {
   return d.toISOString().replace("T", " ").slice(0, 16);
 }
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+// Formats a date-only value as e.g. "9 June 2026" (uses UTC parts — the column is @db.Date).
+function fmtDate(d: Date): string {
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
 function fmtBytes(b: number): string {
   if (b < 1024) return `${b} B`;
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
@@ -137,6 +147,9 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                 </div>
               )}
               <div><dt>Category</dt><dd>{ticket.category}</dd></div>
+              {ticket.expenseDate && (
+                <div><dt>Expense date</dt><dd>{fmtDate(ticket.expenseDate)}</dd></div>
+              )}
               <div><dt>Submitted by</dt><dd>{submitterLabel}</dd></div>
               <div><dt>Submitted on</dt><dd>{fmtDateTime(ticket.createdAt)}</dd></div>
               <div><dt>Status</dt><dd><span className={`badge badge-${status}`}>{status}</span></dd></div>

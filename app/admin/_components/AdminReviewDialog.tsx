@@ -26,6 +26,7 @@ export type ReviewTicket = {
   category: string;
   amount: number;
   approvedAmount: number | null;
+  expenseDate: string | null;
   description: string;
   status: "PENDING" | "REVIEW" | "APPROVED" | "CLEARED" | "REJECTED" | "CANCELLED";
   createdAt: string;
@@ -37,6 +38,18 @@ export type ReviewTicket = {
 
 function fmtINR(n: number) {
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+// Formats a "YYYY-MM-DD" string as e.g. "9 June 2026" (no timezone shift).
+function fmtDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
 type Props = {
@@ -218,6 +231,12 @@ export default function AdminReviewDialog({ open, ticket, onClose }: Props) {
               {ticket.submitterName} · {ticket.empID}
               <div style={{ color: "var(--slate)", fontSize: "0.78rem" }}>{ticket.submitterEmail}</div>
             </dd>
+            {ticket.expenseDate && (
+              <>
+                <dt style={{ color: "var(--slate)" }}>Expense date</dt>
+                <dd style={{ margin: 0 }}>{fmtDate(ticket.expenseDate)}</dd>
+              </>
+            )}
             <dt style={{ color: "var(--slate)" }}>Amount</dt>
             <dd style={{ margin: 0, fontWeight: 700, color: "var(--blue)" }}>{fmtINR(ticket.amount)}</dd>
             {isPartial && (

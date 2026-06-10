@@ -19,6 +19,7 @@ export type AdminEntry = {
   category: string;
   amount: number;
   approvedAmount: number | null;
+  expenseDate: string | null;
   status: "PENDING" | "REVIEW" | "APPROVED" | "CLEARED" | "REJECTED" | "CANCELLED";
   createdAt: string;
   submitterName: string;
@@ -61,6 +62,7 @@ function toReviewTicket(e: AdminEntry): ReviewTicket {
     category: e.category,
     amount: e.amount,
     approvedAmount: e.approvedAmount,
+    expenseDate: e.expenseDate,
     description: e.description,
     status: e.status,
     createdAt: e.createdAt,

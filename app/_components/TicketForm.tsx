@@ -15,6 +15,7 @@ type Props = {
     category?: string;
     amount?: string;
     description?: string;
+    expenseDate?: string;
     existingAttachments?: ExistingAttachment[];
   };
 };
@@ -87,6 +88,7 @@ export default function TicketForm({ mode = "create", ticketId, initial }: Props
   const [title, setTitle] = useState(initial?.title ?? "");
   const [category, setCategory] = useState(initial?.category ?? CATEGORIES[0]);
   const [amount, setAmount] = useState(initial?.amount ?? "");
+  const [expenseDate, setExpenseDate] = useState(initial?.expenseDate ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [files, setFiles] = useState<File[]>([]);
   const [existing, setExisting] = useState<ExistingAttachment[]>(initial?.existingAttachments ?? []);
@@ -142,6 +144,7 @@ export default function TicketForm({ mode = "create", ticketId, initial }: Props
             category,
             amount: amt,
             description,
+            expenseDate: expenseDate || null,
             addAttachments: uploaded,
             removeAttachmentIds: removed,
           }),
@@ -159,6 +162,7 @@ export default function TicketForm({ mode = "create", ticketId, initial }: Props
             category,
             amount: amt,
             description,
+            expenseDate: expenseDate || null,
             attachments: uploaded,
           }),
         });
@@ -227,6 +231,20 @@ export default function TicketForm({ mode = "create", ticketId, initial }: Props
             onChange={(e) => setAmount(e.target.value)}
           />
         </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor="expenseDate">
+          Expense occurrence date{" "}
+          <span style={{ color: "var(--slate)", fontWeight: 400 }}>(optional)</span>
+        </label>
+        <input
+          id="expenseDate"
+          type="date"
+          value={expenseDate}
+          onChange={(e) => setExpenseDate(e.target.value)}
+        />
+        <div className="hint">When the expense was actually incurred.</div>
       </div>
 
       <div className="field">

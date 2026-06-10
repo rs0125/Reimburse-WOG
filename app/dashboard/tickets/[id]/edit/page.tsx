@@ -59,6 +59,7 @@ export default async function EditTicketPage({ params }: { params: Promise<{ id:
             category: ticket.category,
             amount: String(Number(ticket.amount)),
             description: ticket.description,
+            expenseDate: ticket.expenseDate ? ticket.expenseDate.toISOString().slice(0, 10) : "",
             existingAttachments: ticket.attachments.map((a) => ({
               id: a.id,
               name: a.name,

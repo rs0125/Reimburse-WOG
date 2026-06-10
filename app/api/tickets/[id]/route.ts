@@ -21,6 +21,7 @@ type PatchBody = {
   category?: string;
   amount?: number;
   description?: string;
+  expenseDate?: string | null;
   addAttachments?: AttachmentInput[];
   removeAttachmentIds?: string[];
 };
@@ -61,6 +62,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     body.category !== undefined ||
     body.amount !== undefined ||
     body.description !== undefined ||
+    body.expenseDate !== undefined ||
     (body.addAttachments && body.addAttachments.length > 0) ||
     (body.removeAttachmentIds && body.removeAttachmentIds.length > 0);
   const editingStatus = body.status !== undefined;
@@ -97,6 +99,20 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
   if (editingStatus && !(body.status! in STATUS_LABEL)) {
     return NextResponse.json({ error: "invalid status" }, { status: 400 });
+  }
+
+  // Expense occurrence date: optional. Omitted ⇒ leave unchanged; null/"" ⇒ clear it.
+  let expenseDateUpdate: Date | null | undefined = undefined;
+  if (body.expenseDate !== undefined) {
+    if (body.expenseDate === null || body.expenseDate === "") {
+      expenseDateUpdate = null;
+    } else {
+      const d = new Date(body.expenseDate);
+      if (isNaN(d.getTime())) {
+        return NextResponse.json({ error: "invalid expense date" }, { status: 400 });
+      }
+      expenseDateUpdate = d;
+    }
   }
 
   // Approved amount: only meaningful when approving. A null/omitted value means a full
@@ -168,6 +184,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         category: body.category,
         amount: body.amount,
         description: body.description,
+        expenseDate: expenseDateUpdate,
         status: editingStatus ? body.status : undefined,
         approvedAmount: approvedAmountUpdate,
         attachments: body.addAttachments?.length

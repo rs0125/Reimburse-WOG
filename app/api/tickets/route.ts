@@ -17,6 +17,7 @@ type CreateBody = {
   category: string;
   amount: number;
   description: string;
+  expenseDate?: string | null;
   attachments?: AttachmentInput[];
 };
 
@@ -56,6 +57,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "amount must be a non-negative number" }, { status: 400 });
   }
 
+  let expenseDate: Date | null = null;
+  if (body.expenseDate) {
+    const d = new Date(body.expenseDate);
+    if (isNaN(d.getTime())) {
+      return NextResponse.json({ error: "invalid expense date" }, { status: 400 });
+    }
+    expenseDate = d;
+  }
+
   // Parallel: auth + last-shortcode lookup. Saves one round-trip.
   const [user, last] = await Promise.all([
     getCurrentUser(),
@@ -78,6 +88,7 @@ export async function POST(req: Request) {
       category: body.category,
       amount: body.amount,
       description: body.description,
+      expenseDate,
       submittedByEmpID: user.empID,
       attachments: body.attachments?.length ? { create: body.attachments } : undefined,
     },

@@ -109,6 +109,7 @@ model Ticket {
   approvedAmount Decimal?   @db.Decimal(12, 2)
   description String
   status      TicketStatus @default(PENDING)
+  expenseDate DateTime?    @db.Date
 
   submittedByEmpID String
   submittedBy      Employee @relation("EmployeeTickets", fields: [submittedByEmpID], references: [empID])
