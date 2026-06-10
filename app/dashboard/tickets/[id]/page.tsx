@@ -51,7 +51,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   const attachmentsWithUrls = await Promise.all(
     ticket.attachments.map(async (a) => ({
       ...a,
-      previewUrl: await getDownloadUrl(a.r2Key, 600),
+      previewUrl: await getDownloadUrl(a.r2Key, 600, { contentType: a.contentType }),
     })),
   );
   const images = attachmentsWithUrls.filter((a) => a.kind === "IMAGE");

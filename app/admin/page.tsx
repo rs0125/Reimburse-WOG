@@ -16,7 +16,7 @@ export default async function AdminPage() {
       submittedBy: {
         include: { verifiedNumber: { select: { email: true, name: true } } },
       },
-      attachments: { select: { id: true, name: true, kind: true, sizeBytes: true, r2Key: true } },
+      attachments: { select: { id: true, name: true, kind: true, sizeBytes: true, r2Key: true, contentType: true } },
     },
   });
 
@@ -66,7 +66,7 @@ export default async function AdminPage() {
         name: a.name,
         kind: a.kind,
         sizeBytes: a.sizeBytes,
-        previewUrl: await getDownloadUrl(a.r2Key, 600),
+        previewUrl: await getDownloadUrl(a.r2Key, 600, { contentType: a.contentType }),
       })),
     );
 

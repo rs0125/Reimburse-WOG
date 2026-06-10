@@ -50,12 +50,27 @@ async function uploadOne(
   }
   const { url, key } = (await signRes.json()) as SignResponse;
 
-  const putRes = await fetch(url, {
-    method: "PUT",
-    headers: { "content-type": file.type || "application/octet-stream" },
-    body: file,
-  });
-  if (!putRes.ok) throw new Error(`upload failed (${putRes.status})`);
+  // Direct-to-R2 PUT. Retry once on a transient failure (network blip or 5xx),
+  // which is common on mobile connections; a 4xx is permanent so we surface it.
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const putRes = await fetch(url, {
+        method: "PUT",
+        headers: { "content-type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (putRes.ok) {
+        lastErr = null;
+        break;
+      }
+      lastErr = new Error(`upload failed (${putRes.status})`);
+      if (putRes.status < 500) throw lastErr; // client error — retrying won't help
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (lastErr) throw lastErr instanceof Error ? lastErr : new Error("upload failed");
 
   return {
     name: file.name,

@@ -25,7 +25,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   try {
-    const url = await getDownloadUrl(attachment.r2Key, 300);
+    const url = await getDownloadUrl(attachment.r2Key, 300, { contentType: attachment.contentType });
     return NextResponse.json({ url, name: attachment.name, contentType: attachment.contentType });
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown error";

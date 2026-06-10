@@ -38,20 +38,37 @@ export type SignedUploadResult = {
 
 export async function getUploadUrl(
   key: string,
-  contentType: string,
-  expiresIn = 300,
+  _contentType: string,
+  expiresIn = 900,
 ): Promise<SignedUploadResult> {
+  // NOTE: We deliberately do NOT set ContentType on the signed command.
+  // Doing so makes `content-type` a SigV4 *signed* header, so the browser's PUT
+  // must send a byte-identical Content-Type or R2 returns 403 (SignatureDoesNotMatch).
+  // Some mobile browsers / in-app webviews / proxies rewrite that header, which
+  // caused device-specific upload failures. R2 still records the content-type from
+  // the client's PUT header, and we additionally pin it on download via
+  // ResponseContentType (see getDownloadUrl), so previews stay correct regardless.
   const cmd = new PutObjectCommand({
     Bucket: required("R2_BUCKET"),
     Key: key,
-    ContentType: contentType,
   });
   const url = await getSignedUrl(client(), cmd, { expiresIn });
   return { url, key, expiresIn };
 }
 
-export async function getDownloadUrl(key: string, expiresIn = 300): Promise<string> {
-  const cmd = new GetObjectCommand({ Bucket: required("R2_BUCKET"), Key: key });
+export async function getDownloadUrl(
+  key: string,
+  expiresIn = 300,
+  opts?: { contentType?: string },
+): Promise<string> {
+  const cmd = new GetObjectCommand({
+    Bucket: required("R2_BUCKET"),
+    Key: key,
+    // Pin the response content-type so the object renders inline correctly even
+    // if it was stored with a missing/wrong type at upload time.
+    ResponseContentType: opts?.contentType,
+    ResponseContentDisposition: "inline",
+  });
   return getSignedUrl(client(), cmd, { expiresIn });
 }
 
